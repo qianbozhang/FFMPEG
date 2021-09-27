@@ -4,6 +4,8 @@
  **/
 #include <stdio.h>
 #include <string>
+#include <sstream>
+
 extern "C"
 {
 //编解码(最重要的库)
@@ -16,18 +18,29 @@ extern "C"
 #include "libswscale/swscale.h"
 };
 
+using namespace std;
+
 
 #define OUT_WIDTH    480
 #define OUT_HEIGHT   360
 
 
+int savePicture(AVFrame *pFrame) {//编码保存图片
+    static int index = 0;
+    stringstream stream;
+    stream<<"pic_";//向流中传值
+    stream<<index;//向流中传值
+    stream<<".jpg";//向流中传值
+    std::string pic_file_name;
+    stream>>pic_file_name;//向result中写入值
 
-
-static int savePicture(AVFrame *pFrame, char *out_name) {//编码保存图片
+    index ++;
     
     int width = pFrame->width;
     int height = pFrame->height;
     AVCodecContext *pCodeCtx = NULL;
+
+    printf("prapre to save jpg!!!!!\n");
     
     
     AVFormatContext *pFormatCtx = avformat_alloc_context();
@@ -35,7 +48,7 @@ static int savePicture(AVFrame *pFrame, char *out_name) {//编码保存图片
     pFormatCtx->oformat = av_guess_format("mjpeg", NULL, NULL);
  
     // 创建并初始化输出AVIOContext
-    if (avio_open(&pFormatCtx->pb, out_name, AVIO_FLAG_READ_WRITE) < 0) {
+    if (avio_open(&pFormatCtx->pb, pic_file_name.c_str(), AVIO_FLAG_READ_WRITE) < 0) {
         printf("Couldn't open output file.");
         return -1;
     }
@@ -173,7 +186,7 @@ int main(int argc, char  **argv)
     }
 
     //step 4:find video stream
-    for(unsigned int i = 0; i < pFormatCtx->nb_streams; i ++){
+    for(int i = 0; i < pFormatCtx->nb_streams; i ++){
         if(pFormatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = pFormatCtx->streams[i];
@@ -276,7 +289,9 @@ int main(int argc, char  **argv)
                 fwrite(pYUV->data[1], 1, y_size/4, fp_yuv);
                 //pFrame->data[2]表示V
                 fwrite(pYUV->data[2], 1, y_size/4, fp_yuv);
-
+                
+                savePicture(pYUV);
+                
                 got_pic ++;
                 break;
             }
