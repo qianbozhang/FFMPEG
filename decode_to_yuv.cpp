@@ -38,7 +38,6 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
     
     int width = pFrame->width;
     int height = pFrame->height;
-    AVCodecContext *pCodeCtx = NULL;
 
     printf("prapre to save jpg!!!!!\n");
     
@@ -58,22 +57,17 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
     if (pAVStream == NULL) {
         return -1;
     }
+    
+    AVCodecContext *pCodeCtx;
+    pAVStream->codecpar->codec_id = pFormatCtx->oformat->video_codec;
+    pAVStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+    pAVStream->codecpar->format = AV_PIX_FMT_YUVJ420P;
+    pAVStream->codecpar->width = pFrame->width;
+    pAVStream->codecpar->height = pFrame->height;
+    // pAVStream->codecpar->width = OUT_WIDTH;
+    // pAVStream->codecpar->height = OUT_HEIGHT;
  
-    AVCodecParameters *parameters = pAVStream->codecpar;
-    parameters->codec_id = pFormatCtx->oformat->video_codec;
-    parameters->codec_type = AVMEDIA_TYPE_VIDEO;
-    parameters->format = AV_PIX_FMT_YUVJ420P;
-    parameters->width = pFrame->width;
-    parameters->height = pFrame->height;
- 
-    const AVCodec *pCodec = avcodec_find_encoder(pAVStream->codecpar->codec_id);
- 
-    if (!pCodec) {
-        printf("Could not find encoder\n");
-        return -1;
-    }
- 
-    pCodeCtx = avcodec_alloc_context3(pCodec);
+    pCodeCtx = avcodec_alloc_context3(NULL);
     if (!pCodeCtx) {
         fprintf(stderr, "Could not allocate video codec context\n");
         exit(1);
@@ -86,9 +80,18 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
     }
  
     pCodeCtx->time_base = (AVRational) {1, 25};
+
+    printf("width:%d   height:%d\n", pCodeCtx->width, pCodeCtx->height);
+
+    const AVCodec *pCodec = avcodec_find_encoder(pCodeCtx->codec_id);
+ 
+    if (!pCodec) {
+        printf("Could not find encoder\n");
+        return -1;
+    }
  
     if (avcodec_open2(pCodeCtx, pCodec, NULL) < 0) {
-        printf("Could not open codec.");
+        printf("Could not open encodec.");
         return -1;
     }
  
@@ -102,36 +105,39 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
  
     //Encode
     // 给AVPacket分配足够大的空间
-    AVPacket pkt;
-    av_new_packet(&pkt, y_size * 3);
+    AVPacket* pkt;
+    //av_new_packet(&pkt, y_size * 3);
+    pkt = av_packet_alloc();
+
+    char errMsg[512] = {0};
  
     // 编码数据
     ret = avcodec_send_frame(pCodeCtx, pFrame);
     if (ret < 0) {
-        printf("Could not avcodec_send_frame.");
+        av_strerror(ret, errMsg, 512);
+        printf("Could not avcodec_send_frame(%d):%s.\n", ret, errMsg);
         return -1;
     }
  
     // 得到编码后数据
-    ret = avcodec_receive_packet(pCodeCtx, &pkt);
+    ret = avcodec_receive_packet(pCodeCtx, pkt);
     if (ret < 0) {
-        printf("Could not avcodec_receive_packet");
+        printf("Could not avcodec_receive_packet\n");
         return -1;
     }
  
-    ret = av_write_frame(pFormatCtx, &pkt);
+    ret = av_write_frame(pFormatCtx, pkt);
  
     if (ret < 0) {
-        printf("Could not av_write_frame");
+        printf("Could not av_write_frame\n");
         return -1;
     }
  
-    av_packet_unref(&pkt);
  
     //Write Trailer
     av_write_trailer(pFormatCtx);
  
- 
+    av_packet_free(&pkt);
     avcodec_close(pCodeCtx);
     avio_close(pFormatCtx->pb);
     avformat_free_context(pFormatCtx);
@@ -259,6 +265,8 @@ int main(int argc, char  **argv)
                 //AV_PIX_FMT_YUV420P,  ///< planar YUV 4:2:0, 12bpp, (1 Cr & Cb sample per 2x2 Y samples)
                 printf("frame_number:%d,  width:%d,  height:%d.\n", pCodecCtx->frame_number, pFrame->width, pFrame->height);
                 pYUV = av_frame_alloc();
+                pYUV->width = OUT_WIDTH;
+                pYUV->height = OUT_HEIGHT;
 
                 int video_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, OUT_WIDTH, OUT_HEIGHT, 1);
                 uint8_t* buf = (uint8_t*)av_malloc(video_size);
@@ -282,22 +290,36 @@ int main(int argc, char  **argv)
                     printf("fopen fail!!!!\n");
                     break;
                 }
+
                 int y_size = OUT_WIDTH  * OUT_HEIGHT;
+                // //pFrame->data[0]表示Y
+                // fwrite(pYUV->data[0], 1, y_size, fp_yuv);
+                // //pFrame->data[1]表示U
+                // fwrite(pYUV->data[1], 1, y_size/4, fp_yuv);
+                // //pFrame->data[2]表示V
+                // fwrite(pYUV->data[2], 1, y_size/4, fp_yuv);
+
+                printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
+
                 //pFrame->data[0]表示Y
-                fwrite(pYUV->data[0], 1, y_size, fp_yuv);
+                fwrite(buf, 1, y_size, fp_yuv);
                 //pFrame->data[1]表示U
-                fwrite(pYUV->data[1], 1, y_size/4, fp_yuv);
+                fwrite(buf + y_size, 1, y_size/4, fp_yuv);
                 //pFrame->data[2]表示V
-                fwrite(pYUV->data[2], 1, y_size/4, fp_yuv);
+                fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
+
+                fclose(fp_yuv);
+
+                return 0;
                 
-                savePicture(pYUV);
+                //savePicture(pFrame);
                 
                 got_pic ++;
                 break;
             }
         }  
         av_packet_free(&pkg);
-        if(got_pic > 20)
+        if(got_pic > 10)
         {
             break;
         }
