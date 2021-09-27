@@ -25,7 +25,7 @@ using namespace std;
 #define OUT_HEIGHT   360
 
 
-int savePicture(AVFrame *pFrame) {//编码保存图片
+int savePicture(uint8_t *picture_buf, int width, int height) {//编码保存图片
     static int index = 0;
     stringstream stream;
     stream<<"pic_";//向流中传值
@@ -35,9 +35,6 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
     stream>>pic_file_name;//向result中写入值
 
     index ++;
-    
-    int width = pFrame->width;
-    int height = pFrame->height;
 
     printf("prapre to save jpg!!!!!\n");
     
@@ -62,10 +59,8 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
     pAVStream->codecpar->codec_id = pFormatCtx->oformat->video_codec;
     pAVStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     pAVStream->codecpar->format = AV_PIX_FMT_YUVJ420P;
-    pAVStream->codecpar->width = pFrame->width;
-    pAVStream->codecpar->height = pFrame->height;
-    // pAVStream->codecpar->width = OUT_WIDTH;
-    // pAVStream->codecpar->height = OUT_HEIGHT;
+    pAVStream->codecpar->width = width;
+    pAVStream->codecpar->height = height;
  
     pCodeCtx = avcodec_alloc_context3(NULL);
     if (!pCodeCtx) {
@@ -94,25 +89,35 @@ int savePicture(AVFrame *pFrame) {//编码保存图片
         printf("Could not open encodec.");
         return -1;
     }
+
+    AVFrame *picture = av_frame_alloc();
+
+    av_image_fill_arrays(picture->data, picture->linesize, NULL, pCodeCtx->pix_fmt, pCodeCtx->width, pCodeCtx->height, 1);
+
+    int y_size = pCodeCtx->width * pCodeCtx->height;
+
+    picture->data[0] = picture_buf; //Y
+    picture->data[1] = picture_buf + y_size; //U
+    picture->data[2] = picture_buf + y_size * 5/4; //V
+
  
     int ret = avformat_write_header(pFormatCtx, NULL);
     if (ret < 0) {
         printf("write_header fail\n");
         return -1;
     }
- 
-    int y_size = width * height;
+
  
     //Encode
     // 给AVPacket分配足够大的空间
-    AVPacket* pkt;
-    //av_new_packet(&pkt, y_size * 3);
-    pkt = av_packet_alloc();
+    AVPacket* pkt = av_packet_alloc();
 
     char errMsg[512] = {0};
  
     // 编码数据
-    ret = avcodec_send_frame(pCodeCtx, pFrame);
+    ret = avcodec_send_frame(pCodeCtx, picture);
+    // int g;
+    // ret = avcodec_encode_video2(pCodeCtx, pkt, picture, &g);
     if (ret < 0) {
         av_strerror(ret, errMsg, 512);
         printf("Could not avcodec_send_frame(%d):%s.\n", ret, errMsg);
@@ -301,18 +306,14 @@ int main(int argc, char  **argv)
 
                 printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
 
-                //pFrame->data[0]表示Y
-                fwrite(buf, 1, y_size, fp_yuv);
-                //pFrame->data[1]表示U
-                fwrite(buf + y_size, 1, y_size/4, fp_yuv);
-                //pFrame->data[2]表示V
-                fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
-
-                fclose(fp_yuv);
-
-                return 0;
+                // //pFrame->data[0]表示Y
+                // fwrite(buf, 1, y_size, fp_yuv);
+                // //pFrame->data[1]表示U
+                // fwrite(buf + y_size, 1, y_size/4, fp_yuv);
+                // //pFrame->data[2]表示V
+                // fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
                 
-                //savePicture(pFrame);
+                savePicture(buf, OUT_WIDTH, OUT_HEIGHT);
                 
                 got_pic ++;
                 break;
