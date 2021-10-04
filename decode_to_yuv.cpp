@@ -91,14 +91,17 @@ int savePicture(uint8_t *picture_buf, int width, int height) {//编码保存图�
     }
 
     AVFrame *picture = av_frame_alloc();
+    picture->width = pCodeCtx->width;
+    picture->height = pCodeCtx->height;
+    picture->format = AV_PIX_FMT_YUV420P;
 
-    av_image_fill_arrays(picture->data, picture->linesize, NULL, pCodeCtx->pix_fmt, pCodeCtx->width, pCodeCtx->height, 1);
+    av_image_fill_arrays(picture->data, picture->linesize, picture_buf, pCodeCtx->pix_fmt, pCodeCtx->width, pCodeCtx->height, 1);
 
-    int y_size = pCodeCtx->width * pCodeCtx->height;
+    // int y_size = pCodeCtx->width * pCodeCtx->height;
 
-    picture->data[0] = picture_buf; //Y
-    picture->data[1] = picture_buf + y_size; //U
-    picture->data[2] = picture_buf + y_size * 5/4; //V
+    // picture->data[0] = picture_buf; //Y
+    // picture->data[1] = picture_buf + y_size; //U
+    // picture->data[2] = picture_buf + y_size * 5/4; //V
 
  
     int ret = avformat_write_header(pFormatCtx, NULL);
@@ -175,6 +178,7 @@ int main(int argc, char  **argv)
     AVFrame	        *pYUV;
 	AVPacket        *pkg;
     FILE *fp_yuv = fopen("output.yuv", "wb+");
+    FILE *fp_yuv2 = fopen("output2.yuv", "wb+");
 
     //step 2:open input
     int ret = 0;
@@ -296,15 +300,15 @@ int main(int argc, char  **argv)
                     break;
                 }
 
-                int y_size = OUT_WIDTH  * OUT_HEIGHT;
+                // int y_size = OUT_WIDTH  * OUT_HEIGHT;
                 // //pFrame->data[0]表示Y
-                // fwrite(pYUV->data[0], 1, y_size, fp_yuv);
+                // fwrite(pYUV->data[0], 1, y_size, fp_yuv2);
                 // //pFrame->data[1]表示U
-                // fwrite(pYUV->data[1], 1, y_size/4, fp_yuv);
+                // fwrite(pYUV->data[1], 1, y_size/4, fp_yuv2);
                 // //pFrame->data[2]表示V
-                // fwrite(pYUV->data[2], 1, y_size/4, fp_yuv);
+                // fwrite(pYUV->data[2], 1, y_size/4, fp_yuv2);
 
-                printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
+                // printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
 
                 // //pFrame->data[0]表示Y
                 // fwrite(buf, 1, y_size, fp_yuv);
@@ -312,15 +316,17 @@ int main(int argc, char  **argv)
                 // fwrite(buf + y_size, 1, y_size/4, fp_yuv);
                 // //pFrame->data[2]表示V
                 // fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
-                
-                savePicture(buf, OUT_WIDTH, OUT_HEIGHT);
+                if(got_pic > 90)
+                {
+                    savePicture(buf, OUT_WIDTH, OUT_HEIGHT);
+                }
                 
                 got_pic ++;
                 break;
             }
         }  
         av_packet_free(&pkg);
-        if(got_pic > 10)
+        if(got_pic > 100)
         {
             break;
         }
@@ -328,6 +334,7 @@ int main(int argc, char  **argv)
 
 Free:
     fclose(fp_yuv);
+    fclose(fp_yuv2);
     if(pFrame)
     {
         av_frame_free(&pFrame);
