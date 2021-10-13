@@ -300,30 +300,32 @@ int main(int argc, char  **argv)
                     break;
                 }
 
-                // int y_size = OUT_WIDTH  * OUT_HEIGHT;
-                // //pFrame->data[0]表示Y
-                // fwrite(pYUV->data[0], 1, y_size, fp_yuv2);
-                // //pFrame->data[1]表示U
-                // fwrite(pYUV->data[1], 1, y_size/4, fp_yuv2);
-                // //pFrame->data[2]表示V
-                // fwrite(pYUV->data[2], 1, y_size/4, fp_yuv2);
+                int y_size = OUT_WIDTH  * OUT_HEIGHT;
+                //pFrame->data[0]表示Y
+                fwrite(pYUV->data[0], 1, y_size, fp_yuv2);
+                //pFrame->data[1]表示U
+                fwrite(pYUV->data[1], 1, y_size/4, fp_yuv2);
+                //pFrame->data[2]表示V
+                fwrite(pYUV->data[2], 1, y_size/4, fp_yuv2);
 
-                // printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
+                printf("yuv width:%d   height:%d\n", pYUV->width, pYUV->height);
 
-                // //pFrame->data[0]表示Y
-                // fwrite(buf, 1, y_size, fp_yuv);
-                // //pFrame->data[1]表示U
-                // fwrite(buf + y_size, 1, y_size/4, fp_yuv);
-                // //pFrame->data[2]表示V
-                // fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
+                //pFrame->data[0]表示Y
+                fwrite(buf, 1, y_size, fp_yuv);
+                //pFrame->data[1]表示U
+                fwrite(buf + y_size, 1, y_size/4, fp_yuv);
+                //pFrame->data[2]表示V
+                fwrite(buf + y_size* 5/4, 1, y_size/4, fp_yuv);
                 if(got_pic > 90)
                 {
-                    savePicture(buf, OUT_WIDTH, OUT_HEIGHT);
+                    //savePicture(buf, OUT_WIDTH, OUT_HEIGHT);
                 }
                 
                 got_pic ++;
+                av_frame_free(&pYUV);
                 break;
             }
+            av_frame_free(&pFrame);
         }  
         av_packet_free(&pkg);
         if(got_pic > 100)
