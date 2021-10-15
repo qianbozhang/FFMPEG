@@ -13,11 +13,12 @@ extern "C"
 #include "libswscale/swscale.h"
 };
 
+//Y
 #undef BLACK
-#define BLACK  0x000000
-
-#undef BLACK
-#define BLACK2  0x000000
+#define BLACK  0
+//UV
+#undef TRANSPARENCY
+#define TRANSPARENCY  128
 
 #define DUMP_YUV  false
 
@@ -133,6 +134,7 @@ int Thumbnail::getThumbnail(const std::string &uri, int width, int height, int p
 
     CHECKEQUAL(m_Stop, true);
     ret = SavePicture("pic.jpg", m_picture_buf2, m_width, m_height);
+    ret = SavePicture("original_pic.jpg", m_picture_buf, m_SwsWidth, m_SwsHeight);
     if (ret < 0)
     {
         return -1;
@@ -298,16 +300,17 @@ int Thumbnail::DecoderFrame()
         m_SwsHeight = m_VideoHeight;
     }else if(m_VideoWidth <= m_width && m_VideoHeight > m_height)
     {
+        float cc_h = (double)m_VideoHeight / m_height;
         m_SwsHeight = m_height;
-        m_SwsWidth  = m_VideoWidth / (m_VideoHeight / m_height);
+        m_SwsWidth  = m_VideoWidth / cc_h;
     }else if(m_VideoWidth > m_width && m_VideoHeight <= m_height)
     {
+        float cc_w = (double)m_VideoWidth / m_width;
         m_SwsWidth  = m_width;
-        m_SwsHeight = m_VideoHeight / (m_VideoWidth / m_width);
+        m_SwsHeight = m_VideoHeight / cc_w;
     }else{//m_VideoWidth > m_width && m_VideoHeight > m_height
         float cc_w = (double)m_VideoWidth / m_width;
         float cc_h = (double)m_VideoHeight / m_height;
-
         if(cc_w >= cc_h)
         {
             m_SwsWidth  = m_width;
@@ -440,8 +443,30 @@ bool Thumbnail::WidthAndHeight_Equal()
     return true;
 }
 
+
+bool Thumbnail::CopyUnsignedChar(unsigned char *dest, int &pos, unsigned char *src, int start, int len)
+{
+    if(start < 0 || len < 0)
+    {
+        printf("invalue.\n");
+        return false;
+    }
+    for(int i = start; i < start + len; i ++)
+    {
+        dest[pos ++] = src[i];
+    }
+    return true;
+}
 /**
- * euqal width, but height is less.
+ * -------------
+ * |    top    |
+ * -------------
+ * -------------
+ * |    pic    |
+ * -------------
+ * -------------
+ * |   buttom  |
+ * -------------
  * 
  */ 
 bool Thumbnail::Width_Equal()
@@ -453,6 +478,79 @@ bool Thumbnail::Width_Equal()
     //calculate
     if(m_SwsWidth == m_width && m_SwsHeight < m_height)
     {
+#if 1
+        int diff_h     = m_height - m_SwsHeight;
+        int diff_t     = diff_h/2;
+        //Make sure it's a multiple of 2
+        if(diff_t % 2 != 0)
+        {
+            diff_t += 1;  
+        }
+        int diff_b     = diff_h - diff_t;
+        if(diff_b % 2 != 0)
+        {
+            diff_b -= 1;  
+        }
+        int uv_h_t     = diff_t/2;
+        int uv_h_b     = diff_b/2;
+
+        //top
+        int top_s    = m_width * diff_t;
+        int top_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_width, diff_t, 1);
+        uint8_t *top = (uint8_t*)av_malloc(top_size);
+        memset(top, BLACK, m_width * diff_t);
+        memset(top + m_width * diff_t, TRANSPARENCY, m_width * diff_t / 2);
+
+        //buttom
+        int buttom_s    = m_width * diff_b;
+        int buttom_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_width, diff_b, 1);
+        uint8_t *buttom = (uint8_t*)av_malloc(buttom_size);
+        memset(buttom, BLACK, m_width * diff_b);
+        memset(buttom + m_width * diff_b, TRANSPARENCY, m_width * diff_b / 2);
+
+        //pic
+        int pic_s = m_width * m_SwsHeight;
+
+        int pos = 0;
+        //Y
+        //top
+        CopyUnsignedChar(m_picture_buf2, pos, top, 0, top_s);
+        //pic
+        CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, 0, pic_s);
+        //buttom
+        CopyUnsignedChar(m_picture_buf2, pos, buttom, 0, buttom_s);
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height);
+
+        //U
+        pos = m_width * m_height;
+        //top
+        CopyUnsignedChar(m_picture_buf2, pos, top, top_s, top_s/4);
+        printf("pos = %d.\n", pos);
+        //pic
+        CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, pic_s, pic_s/4);
+        //buttom
+        CopyUnsignedChar(m_picture_buf2, pos, buttom, buttom_s, buttom_s/4);
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height * 5/4);
+
+        //V
+        pos = m_width * m_height * 5/4;
+        //top
+        CopyUnsignedChar(m_picture_buf2, pos, top, top_s * 5 / 4, top_s/4);
+        //pic
+        CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, pic_s * 5 / 4, pic_s/4);
+        //buttom
+        CopyUnsignedChar(m_picture_buf2, pos, buttom, buttom_s * 5 / 4, buttom_s/4);
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height * 3/2);
+
+        av_free(top);
+        av_free(buttom);
+
+        //test
+        // for(int i = m_width * m_height * 5/4; i < m_width * m_height * 3/2; i ++)
+        // {
+        //     m_picture_buf2[i] = 128;
+        // }
+#else 
         int diff_h        = m_height - m_SwsHeight;
         int diff_h_top    = diff_h % 2 == 0 ? diff_h/2 : diff_h/2 +1;
         int diff_h_buttom = m_SwsHeight + diff_h_top;
@@ -471,7 +569,7 @@ bool Thumbnail::Width_Equal()
             {
                 if(i < diff_h_top || i > diff_h_buttom)
                 {
-                    data_y[i * m_width + j] = 0;
+                    data_y[i * m_width + j] = BLACK;
                 }
                 else
                 {
@@ -482,31 +580,37 @@ bool Thumbnail::Width_Equal()
 
         //for U
         uint8_t* data_u = (uint8_t*)av_malloc(uv_w * uv_h);
-        row = m_width * m_SwsHeight;
+        row = m_SwsWidth * m_SwsHeight;
         for(int i = 0; i < uv_h; i ++)
         {
             for(int j = 0; j < uv_w; j ++)
             {
                 if(i < uv_diff_top || i > uv_diff_buttom)
                 {
-                    data_u[i * uv_w + j] = 128;
+                    data_u[i * uv_w + j] = TRANSPARENCY;
                 }
                 else
                 {
+                    static bool p = true;
+                    if(p)
+                    {
+                        printf("pos = %d.\n", m_width * m_height + i * uv_w + j);
+                        p =false;
+                    }
                     data_u[i * uv_w + j] = m_picture_buf[row ++];
                 }
             }
         }
         // //for V
         uint8_t* data_v = (uint8_t*)av_malloc(uv_w * uv_h);
-        row = m_width * m_SwsHeight * 5 / 4;
+        row = m_SwsWidth * m_SwsHeight * 5 / 4;
         for(int i = 0; i < uv_h; i ++)
         {
             for(int j = 0; j < uv_w; j ++)
             {
                 if(i < uv_diff_top || i > uv_diff_buttom)
                 {
-                    data_v[i * uv_w + j] = 128;
+                    data_v[i * uv_w + j] = TRANSPARENCY;
                 }
                 else
                 {
@@ -522,6 +626,7 @@ bool Thumbnail::Width_Equal()
         av_free(data_y);
         av_free(data_u);
         av_free(data_v);
+#endif
     }
     else
     {
@@ -531,6 +636,9 @@ bool Thumbnail::Width_Equal()
     return true;
 }
 
+/**
+ * |--left--||--pic--||--right--|
+ */ 
 bool Thumbnail::Height_Equal()
 {
     if(!m_picture_buf || !m_picture_buf2)
@@ -540,10 +648,69 @@ bool Thumbnail::Height_Equal()
 
     if(m_width > m_SwsWidth && m_height == m_SwsHeight)
     {
+        int diff_w    = m_width - m_SwsWidth;
+        int diff_l    = diff_w/2;
+        int diff_r    = diff_w - diff_l;
+
+        //left
+        int left_uv_w = diff_l/2;
+        int left_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, diff_l, m_height, 1);
+        uint8_t *left = (uint8_t*)av_malloc(left_size);
+        memset(left, BLACK, diff_l * m_height);
+        memset(left + diff_l * m_height, TRANSPARENCY, diff_l * m_height / 2);
+
+        //right
+        int right_uv_w = diff_r/2;
+        int right_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, diff_r, m_height, 1);
+        uint8_t *right = (uint8_t*)av_malloc(right_size);
+        memset(right, BLACK, diff_r * m_height);
+        memset(right + diff_r * m_height, TRANSPARENCY, diff_r * m_height / 2);
+
+        //combination:left==>>m_picture==>>right
+        //Y
+        int pos = 0;
+        for(int i = 0; i < m_height; i ++)
+        {
+            //left
+            CopyUnsignedChar(m_picture_buf2, pos, left, i * diff_l, diff_l);
+            //m_picture_buf
+            CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, i * m_SwsWidth, m_SwsWidth);
+            //right
+            CopyUnsignedChar(m_picture_buf2, pos, right, i * diff_r, diff_r);
+        }
+
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height);
+
+        //U
+        for(int i = 0; i < m_height / 2; i ++)
+        {
+            //left
+            CopyUnsignedChar(m_picture_buf2, pos, left, i * left_uv_w + diff_l * m_height, left_uv_w);
+            //m_picture_buf
+            CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, i * m_SwsWidth/2 + m_SwsWidth * m_height, m_SwsWidth/2);
+            //right
+            CopyUnsignedChar(m_picture_buf2, pos, right, i * right_uv_w + diff_r * m_height, right_uv_w);
+        }
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height * 5 / 4);
+        //V
+        for(int i = 0; i < m_height / 2; i ++)
+        {
+            //left
+            CopyUnsignedChar(m_picture_buf2, pos, left, i * left_uv_w + diff_l * m_height * 5 / 4, left_uv_w);
+            //m_picture_buf
+            CopyUnsignedChar(m_picture_buf2, pos, m_picture_buf, i * m_SwsWidth/2 + m_SwsWidth * m_height * 5 / 4, m_SwsWidth/2);
+            //right
+            CopyUnsignedChar(m_picture_buf2, pos, right, i * right_uv_w + diff_r * m_height * 5 / 4, right_uv_w);
+        }
+        printf("pos = %d, total:%d.\n", pos, m_width * m_height * 3 / 2);
+
+        av_free(left);
+        av_free(right);
+#if 0
         int diff_w         = m_width - m_SwsWidth;
-        int uv_diff_w      = diff_w % 2 == 0 ? diff_w/2 : diff_w/2 + 1;
-        int harf_diff_w    = uv_diff_w;
-        int harf_uv_diff_w = uv_diff_w % 2 == 0 ? uv_diff_w/2 : uv_diff_w/2 +1;
+        int uv_diff_w      = diff_w/2;
+        int harf_diff_w    = diff_w/2;
+        int harf_uv_diff_w = uv_diff_w/2;
         int uv_w           = m_width/2;
         int uv_h           = m_height/2;
         int row            = 0;//buf flag
@@ -557,7 +724,7 @@ bool Thumbnail::Height_Equal()
             {
                 if( j < harf_diff_w || j > (harf_diff_w + m_SwsWidth))
                 {
-                    data_y[i * m_width + j] = 0;
+                    data_y[i * m_width + j] = BLACK;
                 }else
                 {
                     data_y[i * m_width + j] = m_picture_buf[row ++];
@@ -565,8 +732,10 @@ bool Thumbnail::Height_Equal()
             }
         }
 
+        printf("row:%d,  total:%d.\n", row, m_SwsWidth * m_SwsHeight);
+
         //for U
-        row = m_SwsWidth * m_height;
+        row = m_SwsWidth * m_SwsHeight;
         uint8_t *data_u = (uint8_t*)av_malloc(uv_w * uv_h);
         for(int i = 0; i < uv_h; i ++)
         {
@@ -574,7 +743,7 @@ bool Thumbnail::Height_Equal()
             {
                 if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2))
                 {
-                    data_u[i * uv_w + j] = 128;
+                    data_u[i * uv_w + j] = TRANSPARENCY;
                 }else
                 {
                     data_u[i * uv_w + j] = m_picture_buf[row ++];
@@ -591,7 +760,7 @@ bool Thumbnail::Height_Equal()
             {
                 if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2))
                 {
-                    data_v[i * uv_w + j] = 128;
+                    data_v[i * uv_w + j] = TRANSPARENCY;
                 }else
                 {
                     data_v[i * uv_w + j] = m_picture_buf[row ++];
@@ -607,10 +776,16 @@ bool Thumbnail::Height_Equal()
         av_free(data_y);
         av_free(data_u);
         av_free(data_v);
+#endif
     }
     return true;
 }
 
+/**
+ * |----------------------top-----------------------|
+ * |--left--||------------pic------------||--right--|
+ * |-------------------buttom-----------------------|
+ */ 
 bool Thumbnail::WidthAndHeight_NoEqual()
 {
     if(!m_picture_buf || !m_picture_buf2)
@@ -619,18 +794,20 @@ bool Thumbnail::WidthAndHeight_NoEqual()
     }
 
     if(m_width > m_SwsWidth && m_height > m_SwsHeight)
-    {
-        int diff_w         = m_width - m_SwsWidth;
-        int diff_h         = m_height - m_SwsHeight;
-        int uv_diff_w      = diff_w % 2 == 0 ? diff_w/2 : diff_w/2 + 1;
-        int uv_diff_h      = diff_h % 2 == 0 ? diff_h/2 : diff_h/2 + 1;
-        int harf_diff_w    = uv_diff_w;
-        int harf_diff_h    = uv_diff_h;
-        int harf_uv_diff_w = uv_diff_w % 2 == 0 ? uv_diff_w/2 : uv_diff_w/2 +1;
-        int harf_uv_diff_h = uv_diff_h % 2 == 0 ? uv_diff_h/2 : uv_diff_h/2 +1;
-        int uv_w           = m_width/2;
-        int uv_h           = m_height/2;
-        int row            = 0;//buf flag
+    {   
+        //top & buttom 's height
+        int diff_h      = m_height - m_SwsHeight;
+        int diff_top    = diff_h % 4 == 0 ? diff_h/2 : diff_h/2 + 1;
+        int diff_buttom = diff_h - diff_top;
+        //left & right 's width
+        int diff_w        = m_width - m_SwsWidth;
+        int diff_left_w   = diff_w % 4 == 0 ? diff_w/2 : diff_w/2 + 1;
+        int diff_right_w  = diff_w - diff_left_w;
+        //left & right 's height
+        int diff_left_h = m_SwsHeight;
+        int diff_right_h = m_SwsHeight;
+
+        int row = 0;//pic_buf flag
 
         //for Y
         uint8_t* data_y = (uint8_t*)av_malloc(m_width * m_height);
@@ -639,9 +816,9 @@ bool Thumbnail::WidthAndHeight_NoEqual()
         {
             for(int j = 0; j < m_width; j++)
             {
-                if( j < harf_diff_w || j > (harf_diff_w + m_SwsWidth) || i < harf_diff_h || i > (harf_diff_h + m_SwsHeight))
+                if( j < diff_left_w || j >= (diff_left_w + m_SwsWidth) || i < diff_top || i >= (diff_top + m_SwsHeight))
                 {
-                    data_y[i * m_width + j] = 0;
+                    data_y[i * m_width + j] = BLACK;
                 }else
                 {
                     data_y[i * m_width + j] = m_picture_buf[row ++];
@@ -650,35 +827,35 @@ bool Thumbnail::WidthAndHeight_NoEqual()
         }
 
         //for U
-        row = m_SwsWidth * m_height;
-        uint8_t *data_u = (uint8_t*)av_malloc(uv_w * uv_h);
-        for(int i = 0; i < uv_h; i ++)
+        row = m_SwsWidth * m_SwsHeight;
+        uint8_t *data_u = (uint8_t*)av_malloc(m_width * m_height/4);
+        for(int i = 0; i < m_height/2; i ++)
         {
-            for(int j = 0 ; j < uv_w; j ++)
+            for(int j = 0 ; j < m_width/2; j ++)
             {
-                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2) || i < harf_uv_diff_h || i > (harf_uv_diff_h + m_SwsHeight/2))
+                if(j < diff_left_w/2 || j >= (diff_left_w/2 + m_SwsWidth/2) || i < diff_top/2 || i >= (diff_top/2 + m_SwsHeight/2))
                 {
-                    data_u[i * uv_w + j] = 128;
+                    data_u[i * m_width/2 + j] = TRANSPARENCY;
                 }else
                 {
-                    data_u[i * uv_w + j] = m_picture_buf[row ++];
+                    data_u[i * m_width/2 + j] = m_picture_buf[row ++];
                 }
             }
         }
 
         //for V
-        row = m_SwsWidth * m_height * 5 / 4;
-        uint8_t *data_v = (uint8_t*)av_malloc(uv_w * uv_h);
-        for(int i = 0; i < uv_h; i ++)
+        row = m_SwsWidth * m_SwsHeight * 5 / 4;
+        uint8_t *data_v = (uint8_t*)av_malloc(m_width * m_height/4);
+        for(int i = 0; i < m_height/2; i ++)
         {
-            for(int j = 0 ; j < uv_w; j ++)
+            for(int j = 0 ; j < m_width/2; j ++)
             {
-                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2) || i < harf_uv_diff_h || i > (harf_uv_diff_h + m_SwsHeight/2))
+                if(j < diff_left_w/2 || j >= (diff_left_w/2 + m_SwsWidth/2) || i < diff_top/2 || i >= (diff_top/2 + m_SwsHeight/2))
                 {
-                    data_v[i * uv_w + j] = 128;
+                    data_v[i * m_width/2 + j] = TRANSPARENCY;
                 }else
                 {
-                    data_v[i * uv_w + j] = m_picture_buf[row ++];
+                    data_v[i * m_width/2 + j] = m_picture_buf[row ++];
                 }
             }
         }
@@ -698,7 +875,8 @@ bool Thumbnail::WidthAndHeight_NoEqual()
 /*edit yuv data*/
 int Thumbnail::EditYvuData()
 {
-    m_picture_buf2 = (uint8_t*)av_malloc(m_width * m_height * 3/2);
+    int size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_width, m_height, 1);
+    m_picture_buf2 = (uint8_t*)av_malloc(size);
     bool isOk = false;
     if(m_width == m_SwsWidth && m_height == m_SwsHeight)
     {

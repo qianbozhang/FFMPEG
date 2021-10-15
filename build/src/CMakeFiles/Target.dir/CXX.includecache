@@ -352,16 +352,6 @@ version.h
 string
 -
 
-/home/zhangqianbo/Desktop/ffplay/FFMPEG/src/test.cpp
-stdio.h
--
-string
--
-sstream
--
-thumbnail.h
-/home/zhangqianbo/Desktop/ffplay/FFMPEG/src/thumbnail.h
-
 /home/zhangqianbo/Desktop/ffplay/FFMPEG/src/thubnail.cpp
 thumbnail.h
 /home/zhangqianbo/Desktop/ffplay/FFMPEG/src/thumbnail.h

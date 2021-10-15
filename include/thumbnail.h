@@ -75,6 +75,9 @@ private:
 	bool Height_Equal();
 	bool WidthAndHeight_NoEqual();
 
+	//copy unsigned char
+	bool CopyUnsignedChar(unsigned char *dest, int &pos, unsigned char *src, int start, int len);
+
 private:
 	//ffmpeg
     AVFormatContext  *m_FmtCtx;
