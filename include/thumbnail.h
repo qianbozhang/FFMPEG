@@ -56,7 +56,7 @@ public:
 
     int getThumbnail(const std::string& uri, int width, int height, int pos, CallBackFun cb);
 
-    /*param init*/
+	/*param init*/
 	virtual int Init(const std::string& uri, int width, int height, int pos, CallBackFun cb);
 	/*open file & find video track info */
 	virtual int OPenFile();
@@ -67,12 +67,19 @@ public:
 	/*edit yuv data*/
 	virtual int EditYvuData();
 	/*save yuv to jpeg*/
-    virtual int SavePicture();
+	virtual int SavePicture(const std::string thumbUrl, const unsigned char *buf, int w, int h);
+
+private:
+    bool WidthAndHeight_Equal();
+    bool Width_Equal();
+	bool Height_Equal();
+	bool WidthAndHeight_NoEqual();
 
 private:
 	//ffmpeg
     AVFormatContext  *m_FmtCtx;
     unsigned char    *m_picture_buf;
+    unsigned char    *m_picture_buf2;
 	long long         m_Duration;//ms
 	int               m_VideoTrack;
 	int               m_VideoWidth;

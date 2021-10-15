@@ -13,6 +13,12 @@ extern "C"
 #include "libswscale/swscale.h"
 };
 
+#undef BLACK
+#define BLACK  0x000000
+
+#undef BLACK
+#define BLACK2  0x000000
+
 #define DUMP_YUV  false
 
 #define CHECKEQUAL(value, except)             \
@@ -66,6 +72,10 @@ Thumbnail::~Thumbnail()
     if(m_picture_buf)
     {
         av_free(m_picture_buf);
+    }
+    if(m_picture_buf2)
+    {
+        av_free(m_picture_buf2);
     }
 
     // if (m_Cb)
@@ -122,7 +132,7 @@ int Thumbnail::getThumbnail(const std::string &uri, int width, int height, int p
     }
 
     CHECKEQUAL(m_Stop, true);
-    ret = SavePicture();
+    ret = SavePicture("pic.jpg", m_picture_buf2, m_width, m_height);
     if (ret < 0)
     {
         return -1;
@@ -282,9 +292,6 @@ int Thumbnail::DecoderFrame()
     m_VideoHeight = pCodecCtx->height;
 
     //calculate
-    /*
-     *1.w <= m_width && h <= m_height
-    */
     if (m_VideoWidth <= m_width && m_VideoHeight <= m_height)
     {
         m_SwsWidth  = m_VideoWidth;
@@ -313,12 +320,13 @@ int Thumbnail::DecoderFrame()
     }
 
     printf("video:width = %d, height = %d.\n", m_VideoWidth, m_VideoHeight);
+    printf("user:width = %d, height = %d.\n", m_width, m_height);
     printf("SWS:width = %d, height = %d.\n", m_SwsWidth, m_SwsHeight);
 
     while (true)
     {
         pkg = av_packet_alloc();
-        printf("read a frame!!!!.\n");
+        //printf("read a frame!!!!.\n");
         ret = av_read_frame(m_FmtCtx, pkg);
         if (ret < 0)
         {
@@ -328,7 +336,7 @@ int Thumbnail::DecoderFrame()
 
         if(pkg->stream_index == m_VideoTrack)
         {
-            printf("prepare to decode frame.\n");
+            //printf("prepare to decode frame.\n");
             if (avcodec_send_packet(pCodecCtx, pkg) != 0)
             {
                 printf("avcodec_send_packet fail!\n");
@@ -338,10 +346,10 @@ int Thumbnail::DecoderFrame()
             pFrame = av_frame_alloc();
             while (avcodec_receive_frame(pCodecCtx, pFrame) == 0)
             {
-                printf("got data.\n");
+                //printf("got data.\n");
                 if(isGot == false)
                 {
-                    printf("save first frame.\n");
+                    //printf("save first frame.\n");
                     pYuv = av_frame_alloc();
 
                     int video_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_SwsWidth, m_SwsHeight, 1);
@@ -420,25 +428,301 @@ FAIL:
     m_Error = ERROR_DECODERFAIL;
     return -1;
 }
+
+bool Thumbnail::WidthAndHeight_Equal()
+{
+    if(!m_picture_buf || !m_picture_buf2)
+    {
+        return false;
+    }
+    //copy 
+    memcpy(m_picture_buf2, m_picture_buf, m_width * m_height * 3 / 2);
+    return true;
+}
+
+/**
+ * euqal width, but height is less.
+ * 
+ */ 
+bool Thumbnail::Width_Equal()
+{
+    if(!m_picture_buf || !m_picture_buf2)
+    {
+        return false;
+    }
+    //calculate
+    if(m_SwsWidth == m_width && m_SwsHeight < m_height)
+    {
+        int diff_h        = m_height - m_SwsHeight;
+        int diff_h_top    = diff_h % 2 == 0 ? diff_h/2 : diff_h/2 +1;
+        int diff_h_buttom = m_SwsHeight + diff_h_top;
+        int uv_w          = m_width / 2;
+        int uv_h          = m_height / 2;
+        int uv_diff_top   = diff_h % 4 == 0 ? diff_h/4 : diff_h/4 +1;
+        int uv_diff_buttom = m_SwsHeight / 2 + uv_diff_top;
+        int row            = 0;//m_picture_buf flag
+
+        //for Y
+        row = 0;
+        uint8_t* data_y = (uint8_t*)av_malloc(m_width * m_height);
+        for(int i = 0; i < m_height ; i++)
+        {
+            for(int j = 0; j < m_width; j ++)
+            {
+                if(i < diff_h_top || i > diff_h_buttom)
+                {
+                    data_y[i * m_width + j] = 0;
+                }
+                else
+                {
+                    data_y[i * m_width + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //for U
+        uint8_t* data_u = (uint8_t*)av_malloc(uv_w * uv_h);
+        row = m_width * m_SwsHeight;
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0; j < uv_w; j ++)
+            {
+                if(i < uv_diff_top || i > uv_diff_buttom)
+                {
+                    data_u[i * uv_w + j] = 128;
+                }
+                else
+                {
+                    data_u[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+        // //for V
+        uint8_t* data_v = (uint8_t*)av_malloc(uv_w * uv_h);
+        row = m_width * m_SwsHeight * 5 / 4;
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0; j < uv_w; j ++)
+            {
+                if(i < uv_diff_top || i > uv_diff_buttom)
+                {
+                    data_v[i * uv_w + j] = 128;
+                }
+                else
+                {
+                    data_v[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+        //copy to m_picture_buf2
+        memcpy(m_picture_buf2, data_y, m_width * m_height);
+        memcpy(m_picture_buf2 + m_width * m_height, data_u, m_width * m_height / 4);
+        memcpy(m_picture_buf2 + m_width * m_height * 5 / 4, data_v, m_width * m_height / 4);
+        //free
+        av_free(data_y);
+        av_free(data_u);
+        av_free(data_v);
+    }
+    else
+    {
+        //do nothing
+        return false;
+    }
+    return true;
+}
+
+bool Thumbnail::Height_Equal()
+{
+    if(!m_picture_buf || !m_picture_buf2)
+    {
+        return false;
+    }
+
+    if(m_width > m_SwsWidth && m_height == m_SwsHeight)
+    {
+        int diff_w         = m_width - m_SwsWidth;
+        int uv_diff_w      = diff_w % 2 == 0 ? diff_w/2 : diff_w/2 + 1;
+        int harf_diff_w    = uv_diff_w;
+        int harf_uv_diff_w = uv_diff_w % 2 == 0 ? uv_diff_w/2 : uv_diff_w/2 +1;
+        int uv_w           = m_width/2;
+        int uv_h           = m_height/2;
+        int row            = 0;//buf flag
+
+        //for Y
+        uint8_t* data_y = (uint8_t*)av_malloc(m_width * m_height);
+        row = 0;
+        for(int i = 0; i < m_height; i ++)
+        {
+            for(int j = 0; j < m_width; j++)
+            {
+                if( j < harf_diff_w || j > (harf_diff_w + m_SwsWidth))
+                {
+                    data_y[i * m_width + j] = 0;
+                }else
+                {
+                    data_y[i * m_width + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //for U
+        row = m_SwsWidth * m_height;
+        uint8_t *data_u = (uint8_t*)av_malloc(uv_w * uv_h);
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0 ; j < uv_w; j ++)
+            {
+                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2))
+                {
+                    data_u[i * uv_w + j] = 128;
+                }else
+                {
+                    data_u[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //for V
+        row = m_SwsWidth * m_height * 5 / 4;
+        uint8_t *data_v = (uint8_t*)av_malloc(uv_w * uv_h);
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0 ; j < uv_w; j ++)
+            {
+                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2))
+                {
+                    data_v[i * uv_w + j] = 128;
+                }else
+                {
+                    data_v[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //copy to m_picture_buf2
+        memcpy(m_picture_buf2, data_y, m_width * m_height);
+        memcpy(m_picture_buf2 + m_width * m_height, data_u, m_width * m_height / 4);
+        memcpy(m_picture_buf2 + m_width * m_height * 5 / 4, data_v, m_width * m_height / 4);
+        //free
+        av_free(data_y);
+        av_free(data_u);
+        av_free(data_v);
+    }
+    return true;
+}
+
+bool Thumbnail::WidthAndHeight_NoEqual()
+{
+    if(!m_picture_buf || !m_picture_buf2)
+    {
+        return false;
+    }
+
+    if(m_width > m_SwsWidth && m_height > m_SwsHeight)
+    {
+        int diff_w         = m_width - m_SwsWidth;
+        int diff_h         = m_height - m_SwsHeight;
+        int uv_diff_w      = diff_w % 2 == 0 ? diff_w/2 : diff_w/2 + 1;
+        int uv_diff_h      = diff_h % 2 == 0 ? diff_h/2 : diff_h/2 + 1;
+        int harf_diff_w    = uv_diff_w;
+        int harf_diff_h    = uv_diff_h;
+        int harf_uv_diff_w = uv_diff_w % 2 == 0 ? uv_diff_w/2 : uv_diff_w/2 +1;
+        int harf_uv_diff_h = uv_diff_h % 2 == 0 ? uv_diff_h/2 : uv_diff_h/2 +1;
+        int uv_w           = m_width/2;
+        int uv_h           = m_height/2;
+        int row            = 0;//buf flag
+
+        //for Y
+        uint8_t* data_y = (uint8_t*)av_malloc(m_width * m_height);
+        row = 0;
+        for(int i = 0; i < m_height; i ++)
+        {
+            for(int j = 0; j < m_width; j++)
+            {
+                if( j < harf_diff_w || j > (harf_diff_w + m_SwsWidth) || i < harf_diff_h || i > (harf_diff_h + m_SwsHeight))
+                {
+                    data_y[i * m_width + j] = 0;
+                }else
+                {
+                    data_y[i * m_width + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //for U
+        row = m_SwsWidth * m_height;
+        uint8_t *data_u = (uint8_t*)av_malloc(uv_w * uv_h);
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0 ; j < uv_w; j ++)
+            {
+                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2) || i < harf_uv_diff_h || i > (harf_uv_diff_h + m_SwsHeight/2))
+                {
+                    data_u[i * uv_w + j] = 128;
+                }else
+                {
+                    data_u[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //for V
+        row = m_SwsWidth * m_height * 5 / 4;
+        uint8_t *data_v = (uint8_t*)av_malloc(uv_w * uv_h);
+        for(int i = 0; i < uv_h; i ++)
+        {
+            for(int j = 0 ; j < uv_w; j ++)
+            {
+                if(j < harf_uv_diff_w || j > (harf_uv_diff_w + m_SwsWidth/2) || i < harf_uv_diff_h || i > (harf_uv_diff_h + m_SwsHeight/2))
+                {
+                    data_v[i * uv_w + j] = 128;
+                }else
+                {
+                    data_v[i * uv_w + j] = m_picture_buf[row ++];
+                }
+            }
+        }
+
+        //copy to m_picture_buf2
+        memcpy(m_picture_buf2, data_y, m_width * m_height);
+        memcpy(m_picture_buf2 + m_width * m_height, data_u, m_width * m_height / 4);
+        memcpy(m_picture_buf2 + m_width * m_height * 5 / 4, data_v, m_width * m_height / 4);
+        //free
+        av_free(data_y);
+        av_free(data_u);
+        av_free(data_v);
+    }
+    return true;
+}
+
 /*edit yuv data*/
 int Thumbnail::EditYvuData()
 {
-    // int size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, m_width, m_height, 1);
-    // m_picture_buf = (uint8_t*)av_malloc(size);
-
-    // int y_size = m_yuv420p->width * m_yuv420p->height;
-    // memcpy(m_picture_buf, m_yuv420p.data[0], )
+    m_picture_buf2 = (uint8_t*)av_malloc(m_width * m_height * 3/2);
+    bool isOk = false;
+    if(m_width == m_SwsWidth && m_height == m_SwsHeight)
+    {
+        isOk = WidthAndHeight_Equal();
+    }else if(m_width == m_SwsWidth && m_height > m_SwsHeight)
+    {
+        isOk = Width_Equal();
+    }else if(m_width > m_SwsWidth && m_height == m_SwsHeight)
+    {
+        isOk = Height_Equal();
+    }else
+    {
+        isOk = WidthAndHeight_NoEqual();
+    }
 
     return 0;
 }
 /*save yuv to jpeg*/
-int Thumbnail::SavePicture()
+int Thumbnail::SavePicture(const std::string thumbUrl, const unsigned char *buf, int w, int h)
 {
-    std::string     pic_file_name = "test.jpg";
     AVFormatContext *pFormatCtx = avformat_alloc_context();
     // 设置输出文件格式
     pFormatCtx->oformat = av_guess_format("mjpeg", NULL, NULL);
-    if (avio_open(&pFormatCtx->pb, pic_file_name.c_str(), AVIO_FLAG_READ_WRITE) < 0)
+    if (avio_open(&pFormatCtx->pb, thumbUrl.c_str(), AVIO_FLAG_READ_WRITE) < 0)
     {
         printf("Couldn't open output file.");
         m_Event = EVENT_THUMBERROR;
@@ -459,8 +743,8 @@ int Thumbnail::SavePicture()
     pAVStream->codecpar->codec_id = pFormatCtx->oformat->video_codec;
     pAVStream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
     pAVStream->codecpar->format = AV_PIX_FMT_YUVJ420P;
-    pAVStream->codecpar->width = m_SwsWidth;
-    pAVStream->codecpar->height = m_SwsHeight;
+    pAVStream->codecpar->width = w;
+    pAVStream->codecpar->height = h;
 
     pCodeCtx = avcodec_alloc_context3(NULL);
     if (!pCodeCtx)
@@ -502,7 +786,7 @@ int Thumbnail::SavePicture()
     picture->height = pCodeCtx->height;
     picture->format = AV_PIX_FMT_YUV420P;
 
-    av_image_fill_arrays(picture->data, picture->linesize, m_picture_buf, pCodeCtx->pix_fmt, pCodeCtx->width, pCodeCtx->height, 1);
+    av_image_fill_arrays(picture->data, picture->linesize, buf, pCodeCtx->pix_fmt, pCodeCtx->width, pCodeCtx->height, 1);
 
     int ret = avformat_write_header(pFormatCtx, NULL);
     if (ret < 0)
