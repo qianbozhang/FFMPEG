@@ -38,8 +38,8 @@ public:
 	virtual int SeekToPos() { return -1000; }
 	/*decoder current frame.*/
 	virtual int DecoderFrame() { return -1000; }
-	/*edit yuv data*/
-	virtual int EditYvuData() { return -1000; }
+	/*edit data*/
+	virtual int EditData() { return -1000; }
 	/*save yuv to jpeg*/
     virtual int SavePicture() { return -1000; }
 };
@@ -65,7 +65,7 @@ public:
 	/*decoder current frame.*/
 	virtual int DecoderFrame();
 	/*edit yuv data*/
-	virtual int EditYvuData();
+	virtual int EditData();
 	/*save yuv to jpeg*/
 	virtual int SavePicture(const std::string thumbUrl, const unsigned char *buf, int w, int h);
 
@@ -74,6 +74,8 @@ private:
     bool Width_Equal();
 	bool Height_Equal();
 	bool WidthAndHeight_NoEqual();
+
+	bool Rotate(int rotate); //0-0, 1-90, 2-180, 3-270
 
 	//copy unsigned char
 	bool CopyUnsignedChar(unsigned char *dest, int &pos, unsigned char *src, int start, int len);

@@ -111,49 +111,64 @@ depend:
 .PHONY : depend
 
 # Convenience name for target.
-src/CMakeFiles/Target.dir/rule:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f CMakeFiles/Makefile2 src/CMakeFiles/Target.dir/rule
-.PHONY : src/CMakeFiles/Target.dir/rule
+src/CMakeFiles/target.dir/rule:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f CMakeFiles/Makefile2 src/CMakeFiles/target.dir/rule
+.PHONY : src/CMakeFiles/target.dir/rule
 
 # Convenience name for target.
-Target: src/CMakeFiles/Target.dir/rule
+target: src/CMakeFiles/target.dir/rule
 
-.PHONY : Target
+.PHONY : target
 
 # fast build rule for target.
-Target/fast:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/build
-.PHONY : Target/fast
+target/fast:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/build
+.PHONY : target/fast
+
+# target to build an object file
+CountTime.o:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/CountTime.o
+.PHONY : CountTime.o
+
+# target to preprocess a source file
+CountTime.i:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/CountTime.i
+.PHONY : CountTime.i
+
+# target to generate assembly for a file
+CountTime.s:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/CountTime.s
+.PHONY : CountTime.s
 
 # target to build an object file
 test.o:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/test.o
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/test.o
 .PHONY : test.o
 
 # target to preprocess a source file
 test.i:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/test.i
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/test.i
 .PHONY : test.i
 
 # target to generate assembly for a file
 test.s:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/test.s
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/test.s
 .PHONY : test.s
 
 # target to build an object file
-thubnail.o:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/thubnail.o
-.PHONY : thubnail.o
+thubnail_rgba.o:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/thubnail_rgba.o
+.PHONY : thubnail_rgba.o
 
 # target to preprocess a source file
-thubnail.i:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/thubnail.i
-.PHONY : thubnail.i
+thubnail_rgba.i:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/thubnail_rgba.i
+.PHONY : thubnail_rgba.i
 
 # target to generate assembly for a file
-thubnail.s:
-	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/thubnail.s
-.PHONY : thubnail.s
+thubnail_rgba.s:
+	cd /home/zhangqianbo/Desktop/ffplay/FFMPEG/build && $(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/thubnail_rgba.s
+.PHONY : thubnail_rgba.s
 
 # Help Target
 help:
@@ -163,13 +178,16 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... Target"
+	@echo "... target"
+	@echo "... CountTime.o"
+	@echo "... CountTime.i"
+	@echo "... CountTime.s"
 	@echo "... test.o"
 	@echo "... test.i"
 	@echo "... test.s"
-	@echo "... thubnail.o"
-	@echo "... thubnail.i"
-	@echo "... thubnail.s"
+	@echo "... thubnail_rgba.o"
+	@echo "... thubnail_rgba.i"
+	@echo "... thubnail_rgba.s"
 .PHONY : help
 
 

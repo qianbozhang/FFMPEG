@@ -1,1 +1,0 @@
-/usr/bin/c++    -rdynamic CMakeFiles/Target.dir/thubnail.o CMakeFiles/Target.dir/test.o  -o ../../output/bin/Target   -L/home/zhangqianbo/Desktop/ffplay/FFMPEG/../lib  -Wl,-rpath,/home/zhangqianbo/Desktop/ffplay/FFMPEG/../lib -lavformat -lavcodec -lavutil -lswscale 

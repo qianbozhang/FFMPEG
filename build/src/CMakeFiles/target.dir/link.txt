@@ -1,0 +1,1 @@
+/usr/bin/c++    -rdynamic CMakeFiles/target.dir/CountTime.o CMakeFiles/target.dir/thubnail_rgba.o CMakeFiles/target.dir/test.o  -o ../../output/bin/target   -L/home/zhangqianbo/Desktop/ffplay/FFMPEG/../lib  -Wl,-rpath,/home/zhangqianbo/Desktop/ffplay/FFMPEG/../lib -lavformat -lavcodec -lavutil -lswscale -lavfilter 

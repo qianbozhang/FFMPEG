@@ -1,5 +1,7 @@
 PROJECT(THUMBTEST)
 
+add_definitions("-Wall -g")
+
 SET(PUBLIC_INCLUDE_PATH  
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/../include
@@ -8,6 +10,7 @@ SET(PUBLIC_INCLUDE_PATH
 SET(PUBLIC_LIBS_PATH
      ${PROJECT_SOURCE_DIR}/../lib
    )
+
 
 #MESSAGE(STATUS “include dir" ${PUBLIC_INCLUDE_PATH})
 #MESSAGE(STATUS "lib dir" ${PUBLIC_LIBS_PATH})

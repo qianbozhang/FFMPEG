@@ -71,7 +71,7 @@ clean: src/clean
 # Directory level rules for directory src
 
 # Recursive "all" directory target.
-src/all: src/CMakeFiles/Target.dir/all
+src/all: src/CMakeFiles/target.dir/all
 
 .PHONY : src/all
 
@@ -81,36 +81,36 @@ src/preinstall:
 .PHONY : src/preinstall
 
 # Recursive "clean" directory target.
-src/clean: src/CMakeFiles/Target.dir/clean
+src/clean: src/CMakeFiles/target.dir/clean
 
 .PHONY : src/clean
 
 #=============================================================================
-# Target rules for target src/CMakeFiles/Target.dir
+# Target rules for target src/CMakeFiles/target.dir
 
 # All Build rule for target.
-src/CMakeFiles/Target.dir/all:
-	$(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/depend
-	$(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles --progress-num=1,2,3 "Built target Target"
-.PHONY : src/CMakeFiles/Target.dir/all
+src/CMakeFiles/target.dir/all:
+	$(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/depend
+	$(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles --progress-num=1,2,3,4 "Built target target"
+.PHONY : src/CMakeFiles/target.dir/all
 
 # Build rule for subdir invocation for target.
-src/CMakeFiles/Target.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles 3
-	$(MAKE) -f CMakeFiles/Makefile2 src/CMakeFiles/Target.dir/all
+src/CMakeFiles/target.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles 4
+	$(MAKE) -f CMakeFiles/Makefile2 src/CMakeFiles/target.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles 0
-.PHONY : src/CMakeFiles/Target.dir/rule
+.PHONY : src/CMakeFiles/target.dir/rule
 
 # Convenience name for target.
-Target: src/CMakeFiles/Target.dir/rule
+target: src/CMakeFiles/target.dir/rule
 
-.PHONY : Target
+.PHONY : target
 
 # clean rule for target.
-src/CMakeFiles/Target.dir/clean:
-	$(MAKE) -f src/CMakeFiles/Target.dir/build.make src/CMakeFiles/Target.dir/clean
-.PHONY : src/CMakeFiles/Target.dir/clean
+src/CMakeFiles/target.dir/clean:
+	$(MAKE) -f src/CMakeFiles/target.dir/build.make src/CMakeFiles/target.dir/clean
+.PHONY : src/CMakeFiles/target.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

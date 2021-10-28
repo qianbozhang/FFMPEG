@@ -15,7 +15,7 @@ void getthumb(std::string file, int width, int height)
 {
 	Thumbnail thu;
 
-	thu.getThumbnail(file, width, height, 1000 * 1.5  /* ms */, CB);
+	thu.getThumbnail(file, width, height, 1000 * 20  /* ms */, CB);
 }
 
 int main(int argc, char const *argv[])

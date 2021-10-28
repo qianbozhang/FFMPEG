@@ -2,4 +2,4 @@
 /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/CMakeFiles/edit_cache.dir
 /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/src/CMakeFiles/rebuild_cache.dir
 /home/zhangqianbo/Desktop/ffplay/FFMPEG/build/src/CMakeFiles/edit_cache.dir
-/home/zhangqianbo/Desktop/ffplay/FFMPEG/build/src/CMakeFiles/Target.dir
+/home/zhangqianbo/Desktop/ffplay/FFMPEG/build/src/CMakeFiles/target.dir
