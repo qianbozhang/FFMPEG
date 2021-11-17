@@ -26,6 +26,9 @@ typedef void (*CallBackFun)(ThumbEvent_e event, ThumbError_e error);
 
 typedef struct AVFormatContext;
 typedef struct AVPacket;
+typedef struct AVFrame;
+typedef struct AVStream;
+typedef struct AVDictionary;
 
 class BuliderThumbnail
 {
@@ -74,11 +77,19 @@ private:
     bool Width_Equal();
 	bool Height_Equal();
 	bool WidthAndHeight_NoEqual();
+	void Rotate_90(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf);
+	void Rotate_180(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf);
+	void Rotate_270(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf);
+
+	bool ConvertFmtToRGBA(AVFrame* inFrame, AVFrame* outFrame);
+	bool ScaleFrame(AVFrame* inFrame, int scaleW, int scaleH, uint8_t* &outBuf);
 
 	bool Rotate(int rotate); //0-0, 1-90, 2-180, 3-270
 
 	//copy unsigned char
 	bool CopyUnsignedChar(unsigned char *dest, int &pos, unsigned char *src, int start, int len);
+
+	int getRotateFromVideoStream(AVDictionary *metadata);
 
 private:
 	//ffmpeg
@@ -87,6 +98,7 @@ private:
     unsigned char    *m_picture_buf2;
 	long long         m_Duration;//ms
 	int               m_VideoTrack;
+	int               m_Rotate;//0,90,180,270
 	int               m_VideoWidth;
 	int               m_VideoHeight;
 	int               m_SwsWidth;

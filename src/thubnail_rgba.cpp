@@ -11,6 +11,7 @@ extern "C"
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/display.h"
 #include "libswscale/swscale.h"
 };
 
@@ -41,6 +42,7 @@ Thumbnail::Thumbnail(/* args */)
     m_picture_buf = NULL;
     m_Duration    = 0;
     m_VideoTrack  = -1;
+    m_Rotate      = 0;
     m_VideoWidth  = -1;
     m_VideoHeight = -1;
     m_SwsWidth    = -1;
@@ -131,9 +133,8 @@ int Thumbnail::getThumbnail(const std::string &uri, int width, int height, int p
         return -1;
     }
 
-    CHECKEQUAL(m_Stop, true);
-    ret = SavePicture("pic.jpg", m_picture_buf2, m_width, m_height);
-    ret = SavePicture("original_pic.jpg", m_picture_buf, m_SwsWidth, m_SwsHeight);
+    // CHECKEQUAL(m_Stop, true);
+    ret = SavePicture("thumbnail", m_picture_buf2, m_width, m_height);
     if (ret < 0)
     {
         return -1;
@@ -250,8 +251,8 @@ int Thumbnail::DecoderFrame()
     AVCodecContext *pCodecCtx;
     const AVCodec  *pCodec;
     AVFrame        *pFrame;
-    AVFrame        *pYuv;
     AVPacket       *pkg;
+    int32_t        *displaymatrix;
 
     int ret = 0;
     char errMsg[512] = {0};
@@ -278,6 +279,28 @@ int Thumbnail::DecoderFrame()
         goto FAIL;
     }
 
+    m_VideoTrack = av_find_best_stream(m_FmtCtx, AVMEDIA_TYPE_VIDEO, -1,-1, NULL, 0);
+    if(m_VideoTrack < 0)
+    {
+        goto FAIL;
+    }
+
+    displaymatrix = (int32_t *)av_stream_get_side_data(m_FmtCtx->streams[m_VideoTrack], AV_PKT_DATA_DISPLAYMATRIX, NULL);
+    if(displaymatrix)
+    {
+        int rotate = av_display_rotation_get((int32_t*) displaymatrix);
+        if(rotate == -90) //It needs to be rotated 90 degrees clockwise
+        {
+            m_Rotate = 90;
+        }else if(rotate == -180) //clockwise 180
+        {
+            m_Rotate = 180;
+        }else if(rotate == 90) //clockwise 270
+        {
+            m_Rotate = 270;
+        }
+    }
+
     //step 6: open video decoder
     ret = avcodec_open2(pCodecCtx, pCodec, NULL);
     if (ret < 0)
@@ -288,41 +311,11 @@ int Thumbnail::DecoderFrame()
     }
 
     //av_dump_format(m_FmtCtx, m_VideoTrack, m_FilePath.c_str(), 0);
+    m_Duration = m_FmtCtx->duration / 1000;
     m_VideoWidth = pCodecCtx->width;
     m_VideoHeight = pCodecCtx->height;
-
-    //calculate
-    if (m_VideoWidth <= m_width && m_VideoHeight <= m_height)
-    {
-        m_SwsWidth  = m_VideoWidth;
-        m_SwsHeight = m_VideoHeight;
-    }else if(m_VideoWidth <= m_width && m_VideoHeight > m_height)
-    {
-        float cc_h = (double)m_VideoHeight / m_height;
-        m_SwsHeight = m_height;
-        m_SwsWidth  = m_VideoWidth / cc_h;
-    }else if(m_VideoWidth > m_width && m_VideoHeight <= m_height)
-    {
-        float cc_w = (double)m_VideoWidth / m_width;
-        m_SwsWidth  = m_width;
-        m_SwsHeight = m_VideoHeight / cc_w;
-    }else{//m_VideoWidth > m_width && m_VideoHeight > m_height
-        float cc_w = (double)m_VideoWidth / m_width;
-        float cc_h = (double)m_VideoHeight / m_height;
-        if(cc_w >= cc_h)
-        {
-            m_SwsWidth  = m_width;
-            m_SwsHeight = m_VideoHeight / cc_w;
-        }else
-        {
-            m_SwsHeight = m_height;
-            m_SwsWidth  = m_VideoWidth / cc_h;
-        }
-    }
-
-    printf("video:width = %d, height = %d.\n", m_VideoWidth, m_VideoHeight);
-    printf("user:width = %d, height = %d.\n", m_width, m_height);
-    printf("SWS:width = %d, height = %d.\n", m_SwsWidth, m_SwsHeight);
+    printf("videoinfo:width:%d, height:%d, duration:%lld, need rotated %d degrees clockwise.\n",
+        m_VideoWidth, m_VideoHeight, m_Duration, m_Rotate);
 
     while (true)
     {
@@ -347,26 +340,97 @@ int Thumbnail::DecoderFrame()
             pFrame = av_frame_alloc();
             while (avcodec_receive_frame(pCodecCtx, pFrame) == 0)
             {
-                //printf("got data.\n");
                 if(isGot == false)
                 {
-                    //printf("save first frame.\n");
-                    pYuv = av_frame_alloc();
+                    //convert
+                    AVFrame* rgbaF = av_frame_alloc();
+                    ConvertFmtToRGBA(pFrame, rgbaF);
 
-                    int video_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, m_SwsWidth, m_SwsHeight, 1);
-                    m_picture_buf = (uint8_t *)av_malloc(video_size);
-                    av_image_fill_arrays(pYuv->data, pYuv->linesize, m_picture_buf, AV_PIX_FMT_RGBA, m_SwsWidth, m_SwsHeight, 1);
-                    //视频像素数据格式转换上下文
-                    SwsContext *sws_ctx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, /*INPUT  W H FMT*/
-                                                        m_SwsWidth, m_SwsHeight, AV_PIX_FMT_RGBA,              /*OUTPUT W H FMT*/
-                                                        SWS_BICUBIC,                                              /*拉伸算法*/
-                                                        NULL, NULL, NULL);                                        /*其他参数*/
-                    //将AVFrame转成视频像素数YUV420P格式
-                    sws_scale(sws_ctx, (const uint8_t * const *)pFrame->data, pFrame->linesize,
-                                        0, pCodecCtx->height, 
-                                        pYuv->data, pYuv->linesize);
-                    sws_freeContext(sws_ctx);
-                    av_frame_free(&pYuv);
+                    //need rotate first.
+                    if(m_Rotate != 0)
+                    {
+                        int size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, m_VideoWidth, m_VideoHeight, 1);
+                        uint8_t* outBuf = (uint8_t*)av_malloc(size);
+
+                        switch(m_Rotate)
+                        {
+                            case 90:
+                            {
+                                Rotate_90(m_VideoWidth, m_VideoHeight, rgbaF->data[0], outBuf);
+                                memset(rgbaF->data[0], 0, size);
+                                memcpy(rgbaF->data[0], outBuf, size);
+                                rgbaF->width = m_VideoHeight;
+                                rgbaF->height = m_VideoWidth;
+                                rgbaF->linesize[0] = rgbaF->width * 4;
+                                break;
+                            }
+                            case 180:
+                            {
+                                Rotate_180(m_VideoWidth, m_VideoHeight, rgbaF->data[0], outBuf);
+                                memset(rgbaF->data[0], 0, size);
+                                memcpy(rgbaF->data[0], outBuf, size);
+                                rgbaF->width = m_VideoWidth;
+                                rgbaF->height = m_VideoHeight;
+                                rgbaF->linesize[0] = rgbaF->width * 4;
+                                break;
+                            }
+                            case 270:
+                            {
+                                Rotate_270(m_VideoWidth, m_VideoHeight, rgbaF->data[0], outBuf);
+                                memset(rgbaF->data[0], 0, size);
+                                memcpy(rgbaF->data[0], outBuf, size);
+                                rgbaF->width = m_VideoHeight;
+                                rgbaF->height = m_VideoWidth;
+                                rgbaF->linesize[0] = rgbaF->width * 4;
+                                break;
+                            }
+                        }
+                        av_free(outBuf);
+
+                        //update
+                        m_VideoWidth = rgbaF->width;
+                        m_VideoHeight = rgbaF->height;
+                    }
+
+                    //calculate
+                    if (m_VideoWidth <= m_width && m_VideoHeight <= m_height)
+                    {
+                        m_SwsWidth  = m_VideoWidth;
+                        m_SwsHeight = m_VideoHeight;
+                    }else if(m_VideoWidth <= m_width && m_VideoHeight > m_height)
+                    {
+                        float cc_h = (double)m_VideoHeight / m_height;
+                        m_SwsHeight = m_height;
+                        m_SwsWidth  = m_VideoWidth / cc_h;
+                    }else if(m_VideoWidth > m_width && m_VideoHeight <= m_height)
+                    {
+                        float cc_w = (double)m_VideoWidth / m_width;
+                        m_SwsWidth  = m_width;
+                        m_SwsHeight = m_VideoHeight / cc_w;
+                    }else{//m_VideoWidth > m_width && m_VideoHeight > m_height
+                        float cc_w = (double)m_VideoWidth / m_width;
+                        float cc_h = (double)m_VideoHeight / m_height;
+                        if(cc_w >= cc_h)
+                        {
+                            m_SwsWidth  = m_width;
+                            m_SwsHeight = m_VideoHeight / cc_w;
+                        }else
+                        {
+                            m_SwsHeight = m_height;
+                            m_SwsWidth  = m_VideoWidth / cc_h;
+                        }
+                    }
+
+                    printf("video:width = %d, height = %d.\n", m_VideoWidth, m_VideoHeight);
+                    printf("user:width = %d, height = %d.\n", m_width, m_height);
+                    printf("SWS:width = %d, height = %d.\n", m_SwsWidth, m_SwsHeight);
+
+                    //scale
+                    m_picture_buf = (uint8_t*)av_malloc(m_SwsWidth * m_SwsHeight * 4);
+                    ScaleFrame(rgbaF, m_SwsWidth, m_SwsHeight, m_picture_buf);
+                    // SavePicture("m_picture_buf", m_picture_buf, m_SwsWidth, m_SwsHeight);
+                    //free
+                    av_frame_free(&rgbaF);
                     isGot = true;
                 }
             }
@@ -398,11 +462,6 @@ FAIL:
     if (pFrame)
     {
         av_frame_free(&pFrame);
-    }
-
-    if (pYuv)
-    {
-        av_frame_free(&pYuv);
     }
 
     if(pCodecCtx)
@@ -594,6 +653,175 @@ bool Thumbnail::WidthAndHeight_NoEqual()
     return true;
 }
 
+void Thumbnail::Rotate_90(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf)
+{
+    if(!outBuf)
+    {
+        printf("invalid outbuf.\n");
+        return;
+    }
+    int pos = 0;
+    //for 90
+    for(int col = ih - 1; col >= 0; col --)
+    {
+        for(int row = 0; row < iw; row ++ )
+        {
+            outBuf[row * ih * 4 + col * 4 + 0] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 1] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 2] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 3] = inbuf[pos ++];
+        }
+    }
+
+    //SavePicture("Rotate_90", outBuf, ih, iw);
+}
+
+void Thumbnail::Rotate_180(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf)
+{
+    if(!outBuf)
+    {
+        printf("invalid outbuf.\n");
+        return;
+    }
+    int pos = 0;
+
+    for(int row = ih - 1; row >= 0; row --)
+    {
+        for(int col = iw - 1; col >= 0; col --)
+        {
+            outBuf[row * iw * 4 + col * 4 + 0] = inbuf[pos ++];
+            outBuf[row * iw * 4 + col * 4 + 1] = inbuf[pos ++];
+            outBuf[row * iw * 4 + col * 4 + 2] = inbuf[pos ++];
+            outBuf[row * iw * 4 + col * 4 + 3] = inbuf[pos ++];
+        }
+    }
+    //SavePicture("Rotate_180", outBuf, iw, ih);
+}
+
+void Thumbnail::Rotate_270(int iw, int ih, uint8_t* inbuf, uint8_t* &outBuf)
+{
+    if(!outBuf)
+    {
+        printf("invalid outbuf.\n");
+        return;
+    }
+    int pos = 0;
+    for(int col = 0; col < ih; col ++)
+    {
+        for(int row = iw - 1; row >= 0; row --)
+        {
+            outBuf[row * ih * 4 + col * 4 + 0] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 1] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 2] = inbuf[pos ++];
+            outBuf[row * ih * 4 + col * 4 + 3] = inbuf[pos ++];
+        }
+    }
+    // SavePicture("Rotate_270", outBuf, ih, iw);
+}
+
+/**
+ * convert to rgba
+ */ 
+bool Thumbnail::ConvertFmtToRGBA(AVFrame* inFrame, AVFrame* outFrame)
+{
+    //fill outframe
+    if(av_image_alloc(outFrame->data, outFrame->linesize,inFrame->width, inFrame->height, AV_PIX_FMT_RGBA, 1) < 0)
+    {
+        printf("av_image_alloc fail.\n");
+        return false;
+    }
+    outFrame->width = inFrame->width;
+    outFrame->height = inFrame->height;
+    outFrame->format = AV_PIX_FMT_RGBA;
+
+    //convert
+    SwsContext *sws_ctx = sws_getContext(inFrame->width, inFrame->height, (AVPixelFormat)inFrame->format,   /*INPUT  W H FMT*/
+                                         inFrame->width, inFrame->height, AV_PIX_FMT_RGBA,                 /*OUTPUT W H FMT*/
+                                         SWS_BICUBIC, NULL, NULL, NULL);          /*default*/
+    if (!sws_ctx) {
+        printf("sws_getContext fail.\n");
+        return false;
+    }
+    sws_scale(sws_ctx, (const uint8_t * const *)inFrame->data, inFrame->linesize, 0, inFrame->height, 
+                                        outFrame->data, outFrame->linesize);
+    //free
+    sws_freeContext(sws_ctx);
+    return true;
+}
+
+/**
+ * scale
+ */ 
+bool Thumbnail::ScaleFrame(AVFrame* inFrame, int scaleW, int scaleH, uint8_t* &outBuf)
+{
+    if(!outBuf)
+    {
+        printf("invalid outbuf!!!.\n");
+        return false;
+    }
+    printf("w:%d, h:%d, fmt:%d.\n", inFrame->width, inFrame->height, inFrame->format);
+    //tmp frame
+    AVFrame *tmp = av_frame_alloc();
+    //fill tmp
+    if(av_image_fill_arrays(tmp->data, tmp->linesize, outBuf, AV_PIX_FMT_RGBA, scaleW, scaleH, 1) < 0)
+    {
+        printf("fill array fail.\n");
+        return false;
+    }
+    //convert
+    SwsContext *sws_ctx = sws_getContext(inFrame->width, inFrame->height, (AVPixelFormat)inFrame->format,   /*INPUT  W H FMT*/
+                                         scaleW, scaleH, AV_PIX_FMT_RGBA,                 /*OUTPUT W H FMT*/
+                                         SWS_BICUBIC, NULL, NULL, NULL);          /*default*/
+    if (!sws_ctx) {
+        printf("sws_getContext fail.\n");
+        return false;
+    }
+    sws_scale(sws_ctx, (const uint8_t * const *)inFrame->data, inFrame->linesize, 0, inFrame->height, 
+                                        tmp->data, tmp->linesize);
+    //free
+    av_frame_free(&tmp);
+    sws_freeContext(sws_ctx);
+
+    return true;
+}
+
+/* get rotate */
+int Thumbnail::getRotateFromVideoStream(AVDictionary *metadata)
+{
+    int rotate = -1;
+    AVDictionaryEntry *tag = NULL;
+    tag = av_dict_get(metadata, "rotate", tag, 0);
+    if (tag == NULL)
+    {
+        printf("tag == NULL\n");
+        rotate = 0;
+    }
+    else
+    {
+        int angle = atoi(tag->value);
+        printf("angle == %d\n", angle);
+        angle %= 360;
+        if (angle == 90)
+        {
+            rotate = 90;
+        }
+        else if (angle == 180)
+        {
+            rotate = 180;
+        }
+        else if (angle == 270)
+        {
+            rotate = 270;
+        }
+        else
+        {
+            rotate = 0;
+        }
+    }
+
+    return rotate;
+}
+
 /*edit yuv data*/
 int Thumbnail::EditData()
 {
@@ -622,7 +850,8 @@ int Thumbnail::EditData()
 int Thumbnail::SavePicture(const std::string thumbUrl, const unsigned char *buf, int w, int h)
 {
     char name[128] = "";
-    snprintf(name, sizeof(name), "%dx%d.rgba", w, h);
+    snprintf(name, sizeof(name), "%s_%dx%d.rgba", thumbUrl.c_str(), w, h);
+    printf("save rgba to %s.\n", name);
 
     FILE *fp = fopen(name, "wb+");
 
